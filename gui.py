@@ -18,6 +18,8 @@ from PySide6.QtWidgets import (
     QProgressBar, QSpinBox, QDoubleSpinBox, QCheckBox, QComboBox, QDialog, QListView, QListWidget
 )
 
+from stem4d import strain
+
 # from stem4d import strain
 # from stem4d import orientations
 
@@ -27,10 +29,24 @@ class Errorwindow_generic(QMessageBox):
         super().__init__()
 
 
-class Worker(QThread):
-    def __init__(self):
-        super().__init__()
-        finished = Signal()
+# class Worker(QThread):
+#     def __init__(self, path):
+#         super().__init__()
+        
+#         self.finished = Signal()
+
+#     def setparams(self):
+#         self.path = path
+#         #self.reciprocal_px_size = reciprocal_pixel_size
+#         #self.QR_Rotation = QR_Rotation
+#         #self.real_px_size = real_pixel_size
+
+
+#     def runStrain(self):
+#         # Call the strain function with the provided path
+#         for paths in path:
+#         strain.RunStrainSinglefile(self.path)
+#         self.finished.emit()
 
 class ListWidget(QListWidget):
     def __init__(self, path):
