@@ -15,10 +15,10 @@ from PySide6.QtGui import (
 
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton, QLineEdit, QFileDialog, QLabel, QMessageBox,
-    QProgressBar, QSpinBox, QDoubleSpinBox, QCheckBox, QComboBox, QDialog, QListView, QListWidget
+    QProgressBar, QSpinBox, QDoubleSpinBox, QCheckBox, QComboBox, QDialog, QListView, QListWidget, QListWidgetItem
 )
 
-from stem4d import strain
+#from stem4d import strain
 
 # from stem4d import strain
 # from stem4d import orientations
@@ -48,24 +48,40 @@ class Errorwindow_generic(QMessageBox):
 #         strain.RunStrainSinglefile(self.path)
 #         self.finished.emit()
 
-class ListWidget(QListWidget):
-    def __init__(self, path):
-        super().__init__()
+class Lister(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+
         self.list_widget = QListWidget(self)
-        self.setWidget(self.list_widget)
+        self.list_widget.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        self.list_widget.itemClicked.connect(self.on_item_clicked)
 
-        # self.list_widget.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
-        # self.list_widget.setDragEnabled(True)
-        # self.list_widget.setAcceptDrops(True)
-        # self.list_widget.setDropIndicatorShown(True)
+    def populate_from_folder(self, folder_path):
+        self.clear()
+        if not folder_path or not os.path.isdir(folder_path):
+            return
+        for filename in os.listdir(folder_path):
+            full_path = os.path.join(folder_path, filename)
+            item = QListWidgetItem(full_path)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            self.addItem(item)
 
-        self.list_widget.itemChanged.connect(self.on_item_changed)
+    def on_item_clicked(self, item):
+        print(f"Clicked: {item.text()}")
 
-    def on_item_changed(self, item):
+        # Handle item click event
         if item.checkState() == Qt.CheckState.Checked:
-            self.list.append(item.text())
+            print(f"Item checked: {item.text()}")
         else:
-            self.list.remove(item.text())
+            print(f"Item unchecked: {item.text()}")
+
+    # def on_item_changed(self, item):
+    #     if item.checkState() == Qt.CheckState.Checked:
+    #         self.list.append(item.text())
+    #     else:
+    #         self.list.remove(item.text())
 
 
 class MainWindow(QWidget):
@@ -80,22 +96,27 @@ class MainWindow(QWidget):
         self.setLayout(self.overall_layout)
 
         self.toolbar_layout = QHBoxLayout()
+        self.toolbar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
         self.body_layout = QHBoxLayout()
         self.feet_layout = QHBoxLayout()
-        self.list = list()
+        
+        
+
 
         self.button_layout1 = QGridLayout()
 
-        self.overall_layout.addLayout(self.toolbar_layout,  Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self.overall_layout.addLayout(self.toolbar_layout)
         self.overall_layout.addLayout(self.body_layout)
         self.overall_layout.addLayout(self.feet_layout)
 
-        self.body_layout.addWidget(self.list_layout)
+
         self.body_layout.addLayout(self.button_layout1)
         
     
         #Sizes
         self.setMinimumSize(800, 600)
+        
 
 
         #Toolbar Buttons
