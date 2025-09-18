@@ -50,7 +50,7 @@ class Imager(QWidget):
 
         # Diffraction display
         self.diffraction_view = pg.ImageView()
-        self.diffraction_view.ui.histogram.hide()
+        #self.diffraction_view.ui.histogram.hide()
         self.diffraction_view.ui.roiBtn.hide()
         self.diffraction_view.ui.menuBtn.hide()
 
@@ -74,14 +74,28 @@ class Imager(QWidget):
     def load_file(self, path):
         self.file_path = path
         self.data_file = hs.load(self.file_path, lazy=False)
+        self.data_file = self.data_file.inav[:100,:100]
         print(self.data_file)
+
+
+
 
     def create_plot(self, path):
         self.load_file(path)
         try:
             # Store diffraction stack
             self.diffraction_stack = np.array(self.data_file.data, dtype=float)  # (Nx, Ny, qx, qy)
+            # diffraction_stack shape: (Nx, Ny, qx, qy)
+            # We want to sum over arbitrary diffraction ROIs fast
 
+            # Compute cumulative sum along qx and qy for each probe position
+            # Shape stays the same: (Nx, Ny, qx+1, qy+1) to handle edge cases
+            self.cumsum_stack = np.zeros((self.diffraction_stack.shape[0],
+                                self.diffraction_stack.shape[1],
+                                self.diffraction_stack.shape[2]+1,
+                                self.diffraction_stack.shape[3]+1), dtype=float)
+
+            self.cumsum_stack[:, :, 1:, 1:] = np.cumsum(np.cumsum(self.diffraction_stack, axis=2), axis=3)
             # Average diffraction pattern
             self.avg_dp = self.diffraction_stack.mean(axis=(0, 1))
             self.diffraction_view.setImage(self.avg_dp.T, autoLevels=True)
@@ -97,17 +111,25 @@ class Imager(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to Create Plot:\n{e}")
 
     def update_virtual_detector_map(self):
-        """Update real-space intensity map continuously while dragging diffraction ROI"""
-        if not hasattr(self, "diffraction_stack"):
+        """Fast real-space map update when moving diffraction ROI"""
+        if not hasattr(self, "cumsum_stack"):
             return
 
-        dp_shape = self.diffraction_stack.shape[-2:]
-        mask = np.zeros(dp_shape, dtype=bool)
-        roi_slice, roi_mask = self.roi_diff.getArraySlice(np.zeros(dp_shape), self.diffraction_view.imageItem)
-        mask[roi_slice] = roi_mask
+        # Get ROI bounds in diffraction image coordinates
+        bounds = self.roi_diff.pos(), self.roi_diff.size()  # top-left corner + size
+        x0 = int(bounds[0][0])
+        y0 = int(bounds[0][1])
+        x1 = min(x0 + int(bounds[1][0]), self.diffraction_stack.shape[2])
+        y1 = min(y0 + int(bounds[1][1]), self.diffraction_stack.shape[3])
 
-        masked_intensity = (self.diffraction_stack[..., mask]).sum(axis=-1)  # (Nx, Ny)
-        self.real_space_view.setImage(masked_intensity.T, autoLevels=False)
+        # Clamp to valid indices
+        x0, y0 = max(x0, 0), max(y0, 0)
+
+        # Get fast sum
+        masked_intensity = self.get_roi_sum(self.cumsum_stack, x0, y0, x1, y1)
+
+        self.real_space_view.setImage(masked_intensity.T, autoLevels=False, autoRange=False)
+
 
     def update_probe_diffraction(self):
         """Update diffraction pattern continuously while dragging real-space ROI"""
@@ -119,14 +141,24 @@ class Imager(QWidget):
         roi_slice, roi_mask = self.roi_real.getArraySlice(np.zeros((nx, ny)), self.real_space_view.imageItem)
         mask[roi_slice] = roi_mask
 
+
+
+
         if np.any(mask):
             selected_dp = self.diffraction_stack[mask].mean(axis=0)  # (qx, qy)
-            self.diffraction_view.setImage(selected_dp.T, autoLevels=False)
+            self.diffraction_view.setImage(selected_dp.T, autoLevels=False, autoRange=False)
         else:
             # fallback: show average diffraction
-            self.diffraction_view.setImage(self.avg_dp.T, autoLevels=False)
+            self.diffraction_view.setImage(self.avg_dp.T, autoLevels=False, autoRange=False)
 
-        
+    def get_roi_sum(self, cumsum_stack, x0, y0, x1, y1):
+        """Fast sum over ROI using integral image (cumsum_stack)"""
+        # Use broadcasting over Nx, Ny
+        total = (cumsum_stack[:, :, x1, y1]
+                - cumsum_stack[:, :, x0, y1]
+                - cumsum_stack[:, :, x1, y0]
+                + cumsum_stack[:, :, x0, y0])
+        return total  # shape: (Nx, Ny)
 
 
 
